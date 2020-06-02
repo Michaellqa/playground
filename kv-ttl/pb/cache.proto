@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package pb;
+
+// func (c *Cache) Add(key string, value T) bool
+// func (c *Cache) Get(key string) (T, bool)
+// func (c *Cache) GetAll() []T
+// func (c *Cache) Remove(key string)
+// func (c *Cache) AddWithTtl(key string, value T, ttl time.Duration) bool
+// func (c *Cache) GetTtl(key string) (time.Duration, bool)
+// func (c *Cache) SetTtl(key string, ttl *time.Time) bool
+
+service Storage {
+    rpc Add (AddRequest) returns (Ack) {}
+    rpc Get (GetRequest) returns (GetResponse) {}
+    rpc GetAll (Empty) returns (stream T) {}
+}
+
+message Empty {}
+
+message T {
+    string value = 1;
+}
+
+message AddRequest {
+    string key = 1;
+    T value = 2;
+}
+
+message Ack {
+    bool ok = 1;
+}
+
+message GetRequest {
+    string key = 1;
+}
+
+message GetResponse {
+    T value = 1;
+    bool ok = 2;
+}

@@ -1,4 +1,4 @@
-package kv_ttl
+package kv
 
 import (
 	"sync"
