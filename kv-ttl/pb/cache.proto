@@ -2,6 +2,9 @@ syntax = "proto3";
 
 package pb;
 
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
 // func (c *Cache) Add(key string, value T) bool
 // func (c *Cache) Get(key string) (T, bool)
 // func (c *Cache) GetAll() []T
@@ -11,31 +14,41 @@ package pb;
 // func (c *Cache) SetTtl(key string, ttl *time.Time) bool
 
 service Storage {
-    rpc Add (AddRequest) returns (Ack) {}
-    rpc Get (GetRequest) returns (GetResponse) {}
+    rpc Add (KeyValue) returns (Empty) {}
+    rpc Get (Key) returns (T) {}
     rpc GetAll (Empty) returns (stream T) {}
+    rpc Remove (Key) returns (Empty) {}
+    rpc AddWithTtl (KeyValueTtl) returns (Empty) {}
+    rpc GetTtl (Key) returns (TtlResponse) {}
+    rpc SetTtl (TtlRequest) returns (Empty) {}
 }
 
 message Empty {}
+
+message Key {
+    string key = 1;
+}
 
 message T {
     string value = 1;
 }
 
-message AddRequest {
+message KeyValue {
     string key = 1;
     T value = 2;
 }
 
-message Ack {
-    bool ok = 1;
-}
-
-message GetRequest {
+message KeyValueTtl {
     string key = 1;
+    T value = 2;
+    google.protobuf.Duration ttl = 3;
 }
 
-message GetResponse {
-    T value = 1;
-    bool ok = 2;
+message TtlRequest {
+    string key = 1;
+    google.protobuf.Timestamp stamp = 2;
+}
+
+message TtlResponse {
+    google.protobuf.Duration ttl = 1;
 }
