@@ -1,6 +1,11 @@
 package kv
 
 import (
+	"crypto/rand"
+	"encoding/json"
+	"fmt"
+	"log"
+	"os"
 	"sync"
 	"time"
 )
@@ -16,18 +21,55 @@ type T struct {
 }
 
 type Cache struct {
+	config configuration
 	mu     sync.RWMutex
 	values map[string]ttlBox
 }
 
-func NewCache() *Cache {
+func NewCache(config Configuration) *Cache {
 	c := &Cache{
 		mu:     sync.RWMutex{},
 		values: make(map[string]ttlBox),
 	}
+	c.configure(config)
 	c.startCleaner(time.Second)
 	return c
 }
+
+func (c *Cache) configure(config Configuration) {
+	c.config = configuration{}
+
+	if config.FileName != "" {
+		c.config.fileName = config.FileName
+		c.restore()
+	} else {
+		b := make([]byte, 6)
+		if _, err := rand.Read(b); err != nil {
+			log.Println(err)
+		}
+		c.config.fileName = fmt.Sprintf("snapshot_%x.json", b)
+	}
+
+	if config.BackupInterval != 0 {
+		c.config.backupInterval = config.BackupInterval
+		c.startAutoBackup()
+	}
+}
+
+func (c *Cache) restore() {
+	f, err := os.OpenFile(c.config.fileName, os.O_RDONLY, 0666)
+	if err != nil {
+		log.Printf("%v - initiated a new cache\n", err)
+		return
+	}
+	defer f.Close()
+
+	if err = json.NewDecoder(f).Decode(&c.values); err != nil {
+		log.Printf("%v - initiated a new cache\n", err)
+	}
+}
+
+// --- background ---
 
 func (c *Cache) startCleaner(delta time.Duration) {
 	tick := time.Tick(delta)
@@ -37,12 +79,44 @@ func (c *Cache) startCleaner(delta time.Duration) {
 			now := time.Now()
 			for k, v := range c.values {
 				if v.Expired != nil && now.After(*v.Expired) {
+					fmt.Printf("deleted: %s %v\n", k, v)
 					delete(c.values, k)
 				}
 			}
 			c.mu.Unlock()
 		}
 	}()
+}
+
+func (c *Cache) startAutoBackup() {
+	tick := time.Tick(c.config.backupInterval)
+	go func() {
+		for range tick {
+			c.makeSnapshot()
+		}
+	}()
+}
+
+func (c *Cache) makeSnapshot() {
+	c.mu.RLock()
+	data, err := json.Marshal(c.values)
+	c.mu.RUnlock()
+	if err != nil {
+		log.Println(err)
+		return
+	}
+
+	f, err := os.OpenFile(c.config.fileName, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0666)
+	if err != nil {
+		log.Println(err)
+		return
+	}
+	defer f.Close()
+
+	log.Printf("file <= %s", data)
+	if _, err := f.Write(data); err != nil {
+		log.Println(err)
+	}
 }
 
 // --- crud ---
